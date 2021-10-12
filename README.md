@@ -1,21 +1,26 @@
-# OrderBook
+# Order Book Task
 
-**TODO: Add description**
+This application uses Agent to manage an order book data
 
-## Installation
+To start your server:
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `order_book` to your list of dependencies in `mix.exs`:
+  * Start Phoenix endpoint with `iex -S mix run --no-halt`
 
-```elixir
-def deps do
-  [
-    {:order_book, "~> 0.1.0"}
-  ]
-end
-```
+Now you can start the exchanger in iex shell
+# Sample Calls
+## Start Exchanger
+{:ok, exchange_pid} = Exchange.start_link()
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at [https://hexdocs.pm/order_book](https://hexdocs.pm/order_book).
+## Insert New Price Level
+Exchange.send_instruction(exchange_pid, %{instruction: :new, side: :bid, price_level_index: 1, price: 50.0, quantity: 30 })
+Exchange.send_instruction(exchange_pid, %{instruction: :new, side: :ask, price_level_index: 1, price: 20.0, quantity: 10 })
 
+## Update Existing Price Level
+Exchange.send_instruction(exchange_pid, %{instruction: :update,side: :ask,price_level_index: 1,price: 70.0,quantity: 20})
+Exchange.send_instruction(exchange_pid, %{instruction: :update,side: :bid,price_level_index: 1,price: 50.0,quantity: 40})
+
+## Delete Existing Price level
+Exchange.send_instruction(exchange_pid, %{instruction: :delete, side: :bid, price_level_index: 1})
+
+## Get order book till a given price level
+Exchange.order_book(exchange_pid, 1)
