@@ -1,6 +1,12 @@
 defmodule Exchange do
+  @moduledoc """
+  This module uses agent to store the order book data. It provides methods to get, create, update and delete values for given price level.
+  """
   use Agent
 
+  @doc """
+  Starts the exchange. It returns process id if started successfully.
+  """
   @spec start_link :: {:error, any} | {:ok, pid}
   def start_link() do
     Agent.start_link(fn -> %{bid: [], ask: []} end, name: __MODULE__)
@@ -11,12 +17,15 @@ defmodule Exchange do
     end
   end
 
+  @doc """
+  This method is used to send instructions. The instruction could be :new, :update, or :delete. It performs operations for two sides i.e. :bid and :ask. It returns :ok if operation is successful. It returns error tuple if operation is unsuccessful
+  """
   @spec send_instruction(any, %{:instruction => any, optional(any) => any}) ::
           :ok | {:error, :invalid_instruction}
   def send_instruction(exchange_pid, %{instruction: instruction} = event) do
     case instruction do
       :new -> insert_new_price_level(exchange_pid, event)
-      :update -> :ok
+      :update -> update_existing_price_level(exchange_pid, event)
       :delete -> :ok
       _-> {:error, :invalid_instruction}
     end
@@ -56,6 +65,45 @@ defmodule Exchange do
     insert(exchange_pid, price_level_index, %{bid_price: price, bid_quantity: quantity}, :bid)
   end
 
+  #This is a private method used by update_existing_price_level/2 method. It updates the values at given price level and in the list of given side. It return :ok if value is updated successfully
+  @spec update(atom | pid | {atom, any} | {:via, atom, any}, any, any, any) :: :ok
+  def update(exchange_pid, price_level_index, side, values) do
+    Agent.update(exchange_pid, & Map.update(&1, side, nil, fn existing_value -> List.replace_at(existing_value, price_level_index, values) end))
+  end
+
+  #This is a private method used by update_existing_price_level/2 method. It checks if value already exists in the list. It returns true if value exists and false incase it doesn't exist.
+  @spec value_exists(atom | pid | {atom, any} | {:via, atom, any}, any, integer) :: boolean
+  def value_exists(exchange_pid, side, price_level_index) do
+      exchange_pid
+      |> Agent.get(&Map.get(&1, side))
+      |> Enum.at(price_level_index)
+      |> case do
+        nil -> false
+        _-> true
+     end
+  end
+
+  #This is a private method used by send_instruction/2 method incase of instruction = :update.
+  @spec update_existing_price_level(atom | pid | {atom, any} | {:via, atom, any}, %{
+          :price => any,
+          :price_level_index => any,
+          :quantity => any,
+          :side => :ask | :bid,
+          optional(any) => any
+        }) :: :ok
+  def update_existing_price_level(exchange_pid, %{side: :ask, price_level_index: price_level_index, price: price, quantity: quantity } = _event) do
+    value_exists(exchange_pid, :ask, price_level_index)
+    |> case do
+      false -> {:error, :not_found}
+      true ->
+        update(exchange_pid, price_level_index, :ask, %{ask_price: price, ask_quantity: quantity})
+      end
+  end
+
+  def update_existing_price_level(exchange_pid, %{side: :bid, price_level_index: price_level_index, price: price, quantity: quantity } = _event) do
+    update(exchange_pid, price_level_index, :bid, %{bid_price: price, bid_quantity: quantity})
+  end
+
   #This is a private method used by order_book/2 method to get the bid and ask values till given price_level. Initially index = 0 and output_list is []. This method is using tail recursion to get all the order book values till given price_level.
   @spec format_order_book_output(list, list, list, number, number) :: list
   def format_order_book_output(output_list, ask_list, bid_list, price_level, index) when index == 0  do
@@ -83,6 +131,9 @@ defmodule Exchange do
     |> Enum.reverse()
   end
 
+  @doc """
+  This method is used to get order book values till given price level.
+  """
   @spec order_book(atom | pid | {atom, any} | {:via, atom, any}, any) :: list
   def order_book(exchange_pid, price_level) do
     %{ask: ask_list, bid: bid_list} = Agent.get(exchange_pid, & &1)
