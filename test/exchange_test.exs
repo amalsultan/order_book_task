@@ -36,4 +36,17 @@ defmodule ExchangeTest do
     {:ok, exchange_pid} = Exchange.start_link()
     assert Exchange.send_instruction(exchange_pid, @invalid_instruction_data) == {:error, :invalid_instruction}
   end
+
+  test "delete existing value" do
+    {:ok, exchange_pid} = Exchange.start_link()
+    Exchange.send_instruction(exchange_pid, @valid_bid_data)
+    assert Exchange.send_instruction(exchange_pid, %{instruction: :delete, side: @valid_bid_data[:side], price_level_index: @valid_bid_data[:price_level_index]}) == :ok
+    assert Exchange.order_book(exchange_pid, @valid_bid_data[:price_level_index]) == []
+  end
+
+  test "delete non existing value" do
+    {:ok, exchange_pid} = Exchange.start_link()
+    assert Exchange.send_instruction(exchange_pid, %{instruction: :delete, side: @valid_bid_data[:side], price_level_index: @valid_bid_data[:price_level_index]}) == {:error, :not_found}
+    assert Exchange.order_book(exchange_pid, @valid_bid_data[:price_level_index]) == []
+  end
 end
